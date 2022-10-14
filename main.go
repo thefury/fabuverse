@@ -4,6 +4,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"go.uber.org/zap"
@@ -82,10 +83,16 @@ func reverseHandler(w http.ResponseWriter, r *http.Request) {
 func main() {
 	logger, err := zap.NewProduction()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("could not initialize zap logger: %v\n", err)
 	}
+	defer logger.Sync()
 
-	sugar := logger.Sugar()
+	hostname, _ := os.Hostname()
+
+	sugar := logger.With(
+		zap.String("app", "fabuverse"),
+		zap.String("host", hostname),
+	).Sugar()
 
 	router := http.NewServeMux()
 	router.HandleFunc("/reverse", reverseHandler)
