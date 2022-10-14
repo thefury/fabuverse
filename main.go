@@ -4,6 +4,8 @@ import (
 	"io"
 	"net/http"
 	"os"
+
+	log "github.com/sirupsen/logrus"
 )
 
 func Reverse(s string) string {
@@ -22,10 +24,15 @@ func reverseHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	log.SetFormatter(&log.JSONFormatter{})
+	log.SetOutput(os.Stdout)
+	log.SetLevel(log.InfoLevel)
+
 	router := http.NewServeMux()
 	router.HandleFunc("/reverse", reverseHandler)
 
+	log.Info("Starting fabuverse service on :3345")
 	if err := http.ListenAndServe(":3345", router); err != nil {
-		os.Exit(1)
+		log.Fatal(err)
 	}
 }
