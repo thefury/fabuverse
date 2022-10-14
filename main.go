@@ -2,11 +2,67 @@ package main
 
 import (
 	"io"
+	"log"
 	"net/http"
-	"os"
+	"time"
 
-	log "github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 )
+
+// logging middleware
+// from: https://blog.questionable.services/article/guide-logging-middleware-go/
+
+type responseData struct {
+	status int
+	size   int
+}
+
+type loggingResponseWriter struct {
+	http.ResponseWriter // composition
+	responseData        *responseData
+}
+
+func (w *loggingResponseWriter) Write(b []byte) (int, error) {
+	size, err := w.ResponseWriter.Write(b)
+	w.responseData.size += size
+
+	return size, err
+}
+
+func (w *loggingResponseWriter) WriteHeader(statusCode int) {
+	w.ResponseWriter.WriteHeader(statusCode)
+	w.responseData.status = statusCode
+}
+
+func LoggingMiddleware(logger *zap.SugaredLogger) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		fn := func(w http.ResponseWriter, r *http.Request) {
+			defer func() {
+				if err := recover(); err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					logger.Errorw("http request error", "err", err)
+				}
+			}()
+
+			start := time.Now()
+
+			responseData := &responseData{status: 0, size: 0}
+			rw := loggingResponseWriter{ResponseWriter: w, responseData: responseData}
+
+			next.ServeHTTP(&rw, r)
+
+			logger.Infow("http request",
+				"status", responseData.status,
+				"method", r.Method,
+				"path", r.URL.EscapedPath(),
+				"duration", time.Since(start),
+				"size", responseData.size,
+			)
+		}
+
+		return http.HandlerFunc(fn)
+	}
+}
 
 func Reverse(s string) string {
 	runes := []rune(s)
@@ -24,15 +80,25 @@ func reverseHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	log.SetFormatter(&log.JSONFormatter{})
-	log.SetOutput(os.Stdout)
-	log.SetLevel(log.InfoLevel)
+	logger, err := zap.NewProduction()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	sugar := logger.Sugar()
 
 	router := http.NewServeMux()
 	router.HandleFunc("/reverse", reverseHandler)
 
-	log.Info("Starting fabuverse service on :3345")
-	if err := http.ListenAndServe(":3345", router); err != nil {
-		log.Fatal(err)
+	loggingMiddleware := LoggingMiddleware(sugar)
+	loggedRouter := loggingMiddleware(router)
+
+	//log.SetFormatter(&log.JSONFormatter{})
+	//log.SetOutput(os.Stdout)
+	//log.SetLevel(log.InfoLevel)
+
+	sugar.Info("Starting fabuverse service on :3345")
+	if err := http.ListenAndServe(":3345", loggedRouter); err != nil {
+		sugar.Fatal(err)
 	}
 }
