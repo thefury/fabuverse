@@ -34,7 +34,7 @@ func (w *loggingResponseWriter) WriteHeader(statusCode int) {
 	w.responseData.status = statusCode
 }
 
-func LoggingMiddleware(logger *zap.SugaredLogger) func(http.Handler) http.Handler {
+func WithLogging(logger *zap.SugaredLogger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		fn := func(w http.ResponseWriter, r *http.Request) {
 			defer func() {
@@ -90,8 +90,8 @@ func main() {
 	router := http.NewServeMux()
 	router.HandleFunc("/reverse", reverseHandler)
 
-	loggingMiddleware := LoggingMiddleware(sugar)
-	loggedRouter := loggingMiddleware(router)
+	withLogging := WithLogging(sugar)
+	loggedRouter := withLogging(router)
 
 	//log.SetFormatter(&log.JSONFormatter{})
 	//log.SetOutput(os.Stdout)
