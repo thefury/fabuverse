@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/thefury/fabuverse/trace"
 	"go.uber.org/zap"
 )
 
@@ -58,6 +59,9 @@ func WithLogging(logger *zap.SugaredLogger) func(http.Handler) http.Handler {
 				"path", r.URL.EscapedPath(),
 				"duration", time.Since(start),
 				"size", responseData.size,
+				"trace-id", w.Header().Get(trace.DefaultTraceHeader),
+				"span-id", w.Header().Get(trace.DefaultSpanHeader),
+				"parent-id", w.Header().Get(trace.DefaultParentHeader),
 			)
 		}
 
@@ -97,12 +101,9 @@ func main() {
 	router := http.NewServeMux()
 	router.HandleFunc("/reverse", reverseHandler)
 
+	tracingMiddleware := trace.New()
 	withLogging := WithLogging(sugar)
-	loggedRouter := withLogging(router)
-
-	//log.SetFormatter(&log.JSONFormatter{})
-	//log.SetOutput(os.Stdout)
-	//log.SetLevel(log.InfoLevel)
+	loggedRouter := tracingMiddleware.Handle(withLogging(router))
 
 	sugar.Info("Starting fabuverse service on :3345")
 	if err := http.ListenAndServe(":3345", loggedRouter); err != nil {
