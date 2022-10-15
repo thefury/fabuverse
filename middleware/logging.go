@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"net/http"
 	"time"
 
@@ -48,23 +49,34 @@ func WithLogging(logger *zap.SugaredLogger) Adapter {
 
 			start := time.Now()
 
+			// add tracing from eariler middleware, will display NULL if nothing present
+			tracedLogger := logger.With(
+				"trace-id", r.Context().Value("TraceId"),
+				"span-id", r.Context().Value("SpanId"),
+				"parent-id", r.Context().Value("ParentId"),
+			)
+
 			responseData := &responseData{status: 0, size: 0}
 			rw := loggingResponseWriter{ResponseWriter: w, responseData: responseData}
 
-			next.ServeHTTP(&rw, r)
+			newCtx := buildLoggingContext(r.Context(), tracedLogger)
+			next.ServeHTTP(&rw, r.WithContext(newCtx))
 
-			logger.Infow("http request",
+			tracedLogger.Infow("http request",
 				"status", responseData.status,
 				"method", r.Method,
 				"path", r.URL.EscapedPath(),
 				"duration", time.Since(start),
 				"size", responseData.size,
-				"trace-id", w.Header().Get(DefaultTraceHeaderName),
-				"span-id", w.Header().Get(DefaultSpanHeaderName),
-				"parent-id", w.Header().Get(DefaultParentHeaderName),
 			)
 		}
 
 		return http.HandlerFunc(fn)
 	}
+}
+
+func buildLoggingContext(ctx context.Context, logger *zap.SugaredLogger) context.Context {
+	newctx := context.WithValue(ctx, "Logger", logger)
+
+	return newctx
 }

@@ -19,6 +19,12 @@ func Reverse(s string) string {
 }
 
 func reverseHandler(w http.ResponseWriter, r *http.Request) {
+	logger, ok := r.Context().Value("Logger").(*zap.SugaredLogger)
+
+	if ok {
+		logger.Info("running reverse handler")
+	}
+
 	s := r.URL.Query().Get("word")
 
 	w.WriteHeader(http.StatusOK)
@@ -44,8 +50,8 @@ func main() {
 
 	chainedRouter := middleware.Chain(
 		router,
-		middleware.WithTracing(middleware.NewTraceConfig()),
 		middleware.WithLogging(sugar),
+		middleware.WithTracing(middleware.NewTraceConfig()),
 	)
 
 	sugar.Info("Starting fabuverse service on :3345")

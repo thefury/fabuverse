@@ -2,6 +2,7 @@
 package middleware
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -58,17 +59,19 @@ func WithTracing(config TraceConfig) Adapter {
 			parentId := r.Header.Get(config.SpanHeaderName)
 			w.Header().Set(config.ParentHeaderName, parentId)
 
-			// possibly set a context for handlers to read
-			//		newCtx := buildTraceContext(r.Context(), traceId, spanId, parentId)
-			//		next.ServeHTTP(w, r.WithContext(newCtx))
-
-			next.ServeHTTP(w, r)
+			newCtx := buildTraceContext(r.Context(), traceId, spanId, parentId)
+			next.ServeHTTP(w, r.WithContext(newCtx))
 		}
 
 		return http.HandlerFunc(fn)
 	}
 }
 
-//func WithTraceData(ctx context.Context, traceId, spanId, parentId string) context.Context {
-//	return context.WithValue(ctx, ContextKey, TraceContext{TraceId: traceId, SpanId: spanId, ParentId: parentId})
-//}
+func buildTraceContext(ctx context.Context, traceId, spanId, parentId string) context.Context {
+
+	ctx = context.WithValue(ctx, "TraceId", traceId)
+	ctx = context.WithValue(ctx, "SpanId", spanId)
+	ctx = context.WithValue(ctx, "ParentId", parentId)
+
+	return ctx
+}
