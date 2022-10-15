@@ -1,4 +1,4 @@
-package trace
+package middleware
 
 import (
 	"net/http"
@@ -15,11 +15,11 @@ func IsValidUUID(u string) bool {
 }
 
 func TestNew(t *testing.T) {
-	mw := New()
+	mw := NewTraceConfig()
 	assert.NotNil(t, mw)
-	assert.Equal(t, DefaultTraceHeader, mw.TraceHeader)
-	assert.Equal(t, DefaultSpanHeader, mw.SpanHeader)
-	assert.Equal(t, DefaultParentHeader, mw.ParentHeader)
+	assert.Equal(t, DefaultTraceHeaderName, mw.TraceHeaderName)
+	assert.Equal(t, DefaultSpanHeaderName, mw.SpanHeaderName)
+	assert.Equal(t, DefaultParentHeaderName, mw.ParentHeaderName)
 }
 
 func TestMiddleware(t *testing.T) {
@@ -30,9 +30,8 @@ func TestMiddleware(t *testing.T) {
 
 	dummyHandler(res, req)
 
-	mw := New()
-	mwt := mw.Handle(dummyHandler)
-	mwt.ServeHTTP(res, req)
+	withTracing := WithTracing(NewTraceConfig())
+	withTracing(dummyHandler).ServeHTTP(res, req)
 
 	result := res.Result()
 
@@ -53,9 +52,8 @@ func TestMiddlewareWithHeaders(t *testing.T) {
 
 	dummyHandler(res, req)
 
-	mw := New()
-	mwt := mw.Handle(dummyHandler)
-	mwt.ServeHTTP(res, req)
+	withTracing := WithTracing(NewTraceConfig())
+	withTracing(dummyHandler).ServeHTTP(res, req)
 
 	result := res.Result()
 
@@ -70,18 +68,18 @@ func TestMiddlewareWithHeaders(t *testing.T) {
 }
 
 func TestDefaultValues(t *testing.T) {
-	mw := Middleware{}
+	mw := NewTraceConfig()
 
-	assert.Equal(t, DefaultTraceHeader, mw.getTraceName())
-	assert.Equal(t, DefaultSpanHeader, mw.getSpanName())
-	assert.Equal(t, DefaultParentHeader, mw.getParentName())
+	assert.Equal(t, DefaultTraceHeaderName, mw.TraceHeaderName)
+	assert.Equal(t, DefaultSpanHeaderName, mw.SpanHeaderName)
+	assert.Equal(t, DefaultParentHeaderName, mw.ParentHeaderName)
 
-	mw.SpanHeader = "testval"
-	assert.Equal(t, "testval", mw.getSpanName())
+	mw.SpanHeaderName = "testval"
+	assert.Equal(t, "testval", mw.SpanHeaderName)
 }
 
 func TestDefaultIdGenerator(t *testing.T) {
-	mw := New()
+	mw := NewTraceConfig()
 	assert.True(t, IsValidUUID(mw.IdGenerator()))
 
 	mw.IdGenerator = func() string { return "testval" }
